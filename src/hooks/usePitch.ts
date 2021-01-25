@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import pitchDetection from "../shared/PitchDetection";
 
 declare global {
 	interface Window {
@@ -20,7 +21,7 @@ const usePitch = () => {
 			.getUserMedia({ audio: true, video: false })
 			.then(function (stream) {
 				const audioContext = new AudioContext();
-				detector = window.ml5.pitchDetection(MODEL_URL, audioContext, stream, modelLoaded);
+				detector = pitchDetection(MODEL_URL, audioContext, stream, modelLoaded);
 				running.current = true;
 			})
 			.catch(function (err) {

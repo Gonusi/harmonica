@@ -28,7 +28,8 @@ The keys are clickable and play a generated tone.
 3.  create a loop to create Key components for each of the note
 4.  make them activate correctly as their pitch is played to the mic
 
-Review:
+###Review:
+
 Successfully implemented all goals except didn't determine bounds between notes. This is due to unexpected problem. Could not detect any pitch higher than 2kHz. I suspect it's due to sampling rate being lowered for faster processing inside ml5 framework. Turns out max recordable frequency is called Nyquist frequency and it is half of sample rate, implying there's a 4kHz sample rate set somewhere in my audio.
 
 Another problem is I can no longer access my CRA app from my local network. I remember this problem, but don't remember the solution yet.
@@ -43,3 +44,6 @@ I'll tackle this tomorrow.
 2. Determine if I can increase the sample rate.
 3. Increase the sample rate and test performance.
 4. Test on mobile.
+
+###Review:
+Problem lied within ml5 libary. As suspected, for performance reasons, audio is resampled to 1024 kHz before processing for performance reasons.
