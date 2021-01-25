@@ -1,0 +1,18 @@
+.container {
+	width: 40px;
+	height: 40px;
+	font-size: 20px;
+	line-height: 40px;
+	text-align: center;
+	border: 2px solid black;
+
+	&.active {
+		border: 2px solid red;
+	}
+}
+
+.placeholder {
+	width: 40px;
+	height: 40px;
+	border: 2px solid transparent;
+}

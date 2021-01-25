@@ -2,27 +2,25 @@ import React from "react";
 import classNames from "classnames";
 import styles from "./Key.module.scss";
 
-interface FreqRange {
-	low: number;
-	exact: number;
-	high: number;
-}
-
 interface Note {
 	name: string;
-	freq: FreqRange;
+	pitch: number;
 }
 
 interface KeyProps {
 	note: Note;
-	freq: Number;
+	pitch: Number;
 }
 
-const Key = ({ note, freq }: KeyProps) => {
-	const active = freq && freq > note.freq.low && freq <= note.freq.high;
+const Key = ({ note, pitch }: KeyProps) => {
+	if (!note) return <div className={styles.placeholder} />;
+	// no time today to calculate proper ranges, let's try a good old + - 20 :)
+	const pitchLow = note.pitch - 20;
+	const pitchHigh = note.pitch + 20;
+	const active = pitch && pitch > pitchLow && pitch <= pitchHigh;
 	return (
-		<div className={classNames({ [styles.active]: active })}>
-			{note.name}, active: {active ? "true" : "false"}
+		<div className={classNames(styles.container, { [styles.active]: active })}>
+			{note?.name}
 		</div>
 	);
 };
