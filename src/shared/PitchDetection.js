@@ -37,23 +37,11 @@ class PitchDetection {
 	 * @param {function} callback  - Optional. A callback to be called once the model has loaded. If no callback is provided, it will return a promise that will be resolved once the model has loaded.
 	 */
 	constructor(model, audioContext, stream, callback) {
-		/**
-		 * The pitch detection model.
-		 * @type {model}
-		 * @public
-		 */
+		this.isProcessing = false;
+		this.scriptNode = null;
+		this.onAudioProcessRef = null;
 		this.model = model;
-		/**
-		 * The AudioContext instance. Contains sampleRate, currentTime, state, baseLatency.
-		 * @type {AudioContext}
-		 * @public
-		 */
 		this.audioContext = audioContext;
-		/**
-		 * The MediaStream instance. Contains an id and a boolean active value.
-		 * @type {MediaStream}
-		 * @public
-		 */
 		this.stream = stream;
 		this.frequency = null;
 		this.ready = callCallback(this.loadModel(model), callback);
@@ -71,48 +59,50 @@ class PitchDetection {
 
 	async processStream() {
 		await tf.nextFrame();
-
 		const mic = this.audioContext.createMediaStreamSource(this.stream);
-		const minBufferSize = (this.audioContext.sampleRate / 16000) * 1024;
+		const minBufferSize = (this.audioContext.sampleRate / 32000) * 1024;
 		let bufferSize = 4;
 		while (bufferSize < minBufferSize) bufferSize *= 2;
 
-		const scriptNode = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
-		scriptNode.onaudioprocess = this.processMicrophoneBuffer.bind(this);
-		const gain = this.audioContext.createGain();
-		gain.gain.setValueAtTime(0, this.audioContext.currentTime);
+		this.scriptNode = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
+		this.onAudioProcessRef = this.handleAudioProcess.bind(this);
+		this.scriptNode?.addEventListener("audioprocess", this.onAudioProcessRef);
 
-		mic.connect(scriptNode);
-		scriptNode.connect(gain);
-		gain.connect(this.audioContext.destination);
+		mic.connect(this.scriptNode);
+		this.scriptNode?.connect(this.audioContext.destination);
 
 		if (this.audioContext.state !== "running") {
 			console.warn("User gesture needed to start AudioContext, please click");
 		}
 	}
 
+	handleAudioProcess(audioEvent) {
+		if (!this.isProcessing) {
+			// Try to avoid processing until previous work is done
+			// Is it working? Need to test
+			this.processMicrophoneBuffer(audioEvent);
+		}
+	}
+
+	stop() {
+		this.scriptNode?.disconnect();
+		this.scriptNode?.removeEventListener("audioprocess", this.onAudioProcessRef); // Check if I can not use ref maybe by binding in the constructor or just rewrite class to fn
+	}
+	i;
+
 	async processMicrophoneBuffer(event) {
-		await tf.nextFrame();
-		/**
-		 * The current pitch prediction results from the classification model.
-		 * @type {Object}
-		 * @public
-		 */
+		// Many calls to this used to accumulate I think (faster than they were being processed), leading to poor performance
+		// isProcessing flag hopefully will solve this
+		this.isProcessing = true;
 		this.results = {};
 
 		PitchDetection.resample(event.inputBuffer, (resampled) => {
 			tf.tidy(() => {
-				/**
-				 * A boolean value stating whether the model instance is running or not.
-				 * @type {boolean}
-				 * @public
-				 */
 				const centMapping = tf.add(
 					tf.linspace(0, 7180, 360),
 					tf.tensor(1997.3794084376191)
 				);
 
-				this.running = true;
 				const frame = tf.tensor(resampled.slice(0, 1024));
 				const zeromean = tf.sub(frame, tf.mean(frame));
 				const framestd = tf.tensor(tf.norm(zeromean).dataSync() / Math.sqrt(1024));
@@ -135,7 +125,8 @@ class PitchDetection {
 				const predictedHz = 10 * 2 ** (predictedCent / 1200.0);
 
 				const frequency = confidence > 0.5 ? predictedHz : null;
-				this.frequency = frequency;
+				this.frequency = frequency * 2;
+				this.isProcessing = false;
 			});
 		});
 	}
@@ -145,9 +136,9 @@ class PitchDetection {
 	 * @param {function} callback - Optional. A function to be called when the model has generated content. If no callback is provided, it will return a promise that will be resolved once the model has predicted the pitch.
 	 * @returns {number}
 	 */
+
 	async getPitch(callback) {
 		await this.ready;
-		await tf.nextFrame();
 		const { frequency } = this;
 		if (callback) {
 			callback(undefined, frequency);
@@ -156,9 +147,11 @@ class PitchDetection {
 	}
 
 	static resample(audioBuffer, onComplete) {
-		const interpolate = audioBuffer.sampleRate % 16000 !== 0;
-		const multiplier = audioBuffer.sampleRate / 16000;
 		const original = audioBuffer.getChannelData(0);
+		if (audioBuffer.sampleRate === 32000) onComplete(original);
+
+		const interpolate = audioBuffer.sampleRate % 32000 !== 0;
+		const multiplier = audioBuffer.sampleRate / 32000;
 		const subsamples = new Float32Array(1024);
 		for (let i = 0; i < 1024; i += 1) {
 			if (!interpolate) {
