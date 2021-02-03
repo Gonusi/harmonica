@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import classNames from "classnames";
 import styles from "./Key.module.scss";
 import { SingleNote } from "../../shared/Note/Note";
@@ -17,10 +17,10 @@ interface KeyProps {
 // Maybe parent should listen to pitch and know which pitch affects which key, then only update required components
 // As of now, all components get updated and do their processing...
 
-const toPercentValue = (valMin: number, valMax: number, val: number) => {
-	const percent = (val - valMin) / (valMax - valMin);
-	const result = percent * 100;
-	return result;
+const linearMap = (xMin: number, xMax: number, yMin: number, yMax: number, x: number) => {
+	const percent = (x - yMin) / (yMax - yMin);
+	const result = percent * (xMax - xMin) + xMin;
+	return Math.floor(result);
 };
 
 const Key = ({ note, pitch }: KeyProps) => {
@@ -46,28 +46,22 @@ const Key = ({ note, pitch }: KeyProps) => {
 
 	if (!note) return <div className={styles.placeholder} />;
 
-	// if (note.name === "A_4") {
-	// 	console.log("A_4 pitchLow:", range.low, " pitchHigh: ", range.high);
-	// }
 	const active = pitch && pitch > range.low && pitch <= range.high;
-	let percentValue;
+	let percentValue = 0;
 	if (active) {
-		percentValue = toPercentValue(range.low, range.high, pitch);
-		console.log(
-			percentValue.toFixed(2),
-			"curr:",
-			pitch,
-			"low: ",
-			range.low,
-			"high:",
-			range.high,
-			"exact: ",
-			note.pitch,
-			"next.exact:",
-			note.next.pitch
-		);
+		if (pitch < note.pitch) {
+			percentValue = 100 - linearMap(0, 49, range.low, note.pitch, pitch);
+		} else if (pitch > note.pitch) {
+			percentValue = 100 - linearMap(51, 100, note.pitch, range.high, pitch);
+		}
 	}
-	return <div className={classNames(styles.container, { [styles.active]: active })}>{name}</div>;
+
+	return (
+		<div className={classNames(styles.container, { [styles.active]: active })}>
+			{name}
+			<div className={styles.position} style={{ top: `${percentValue}%` }} />
+		</div>
+	);
 };
 
 export default Key;
